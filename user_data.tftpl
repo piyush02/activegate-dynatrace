@@ -1,0 +1,46 @@
+#!/bin/bash -xe
+cd /home/ec2-user/
+wget  -O ${dt_installer} "https://${tenant_id}.live.dynatrace.com/api/v1/deployment/installer/gateway/unix/latest?arch=x86&flavor=default" --header="Authorization: Api-Token ${pass_token}"
+wget https://ca.dynatrace.com/dt-root.cert.pem ; ( echo 'Content-Type: multipart/signed; protocol="application/x-pkcs7-signature"; micalg="sha-256"; boundary="--SIGNED-INSTALLER"'; echo ; echo ; echo '----SIGNED-INSTALLER' ; cat ${dt_installer} ) | openssl cms -verify -CAfile dt-root.cert.pem > /dev/null
+sudo  /bin/sh ${dt_installer}
+echo "[aws_monitoring]" >> /var/lib/dynatrace/gateway/config/custom.properties
+echo "use_aws_proxy_role = false" >> /var/lib/dynatrace/gateway/config/custom.properties
+echo "aws_monitoring_enabled = true" >> /var/lib/dynatrace/gateway/config/custom.properties
+systemctl restart dynatracegateway.service
+
+sleep 30
+
+curl --location --request POST 'https://${tenant_id}.live.dynatrace.com/api/config/v1/aws/credentials' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Api-token ${api_token}' \
+--header 'Cookie: SRV=server2; apmsessionid=node010e4v585sdl1o1de9jeussg9g395813.node0' \
+--data-raw '{
+	"metadata": {
+		"configurationVersions": [
+
+		],
+		"currentConfigurationVersions": [
+
+		],
+		"clusterVersion": ""
+	},
+	"id": null,
+	"connectionStatus": null,
+	"label": "${connection_name}",
+	"partitionType": "AWS_DEFAULT",
+	"authenticationData": {
+		"type": "ROLE",
+
+		"roleBasedAuthentication": {
+			"iamRole": "${name}",
+			"accountId": "${my_account_id}",
+			"externalId": null
+		}
+	},
+	"taggedOnly": true,
+	"tagsToMonitor": [{
+		"name": null,
+		"value": null
+	}],
+	"supportingServicesToMonitor": null
+}'
